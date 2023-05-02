@@ -6,65 +6,40 @@ from urllib.parse import urlparse
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, AsyncGenerator
 
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+
 import httpx
 from bs4 import BeautifulSoup  # type: ignore
-from fake_useragent import UserAgent  # type: ignore
-
 
 class Fetcher:
-    """Class to make asynchronous GET requests.
-    """
-    KEEPALIVE_CONNECTIONS: int = 5
-    MAX_CONNECTIONS: int = 10
-    TIMEOUT: int = 10
+    """Class for fetching web pages content."""
 
-    def __init__(self):
-        self.user_agent = UserAgent()
-
-    async def fetch(self, session: httpx.AsyncClient,
-                    url: str) -> Tuple[str, httpx.Response]:
-        """Make asynchronous GET request to url.
-        """
-        headers = {'User-Agent': self.user_agent.random}
-        try:
-            response = await session.get(url, headers=headers)
-            if response.status_code != 200:
-                response.raise_for_status()
-        except httpx.HTTPStatusError:
-            logging.debug('Failed while parsing %s: status code %s',
-                          url, response.status_code)
-        except httpx.HTTPError as e:
-            logging.debug('Failed while parsing %s: %s', url, e)
-        return url, response
-
-    def get_session(self) -> httpx.AsyncClient:
-        """Return client for making asynchronous requests.
-        """
-        limits = httpx.Limits(
-            max_keepalive_connections=self.KEEPALIVE_CONNECTIONS,
-            max_connections=self.MAX_CONNECTIONS
-        )
-        session = httpx.AsyncClient(limits=limits, timeout=self.TIMEOUT)
-        return session
+    def __init__(self, browser):
+        self.browser = browser
+    
+    async def fetch_page_content(self, url: str) -> Tuple[str, str]:
+        """Fetch page content using a Selenium browser."""
+        self.browser.get(url)
+        wait = WebDriverWait(self.browser, 30)
+        header = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'header')))
+        content = self.browser.page_source
+        return url, content
 
     async def fetch_pages_content(self, urls: List[str]) -> AsyncGenerator:
-        """Asyncroniously fetch and page's html content from urls.
-        """
+        """Asyncroniously fetch and page's html content from urls."""
         tasks = []
-        session = self.get_session()
+        for url in urls:
+            if url.startswith(("http://", "https://")):
+                tasks.append(asyncio.create_task(self.fetch_page_content(url)))
+            else:
+                tasks.append(asyncio.create_task(asyncio.sleep(0)))
 
-        async with session:
-            for url in urls:
-                tasks.append(
-                    asyncio.create_task(
-                        self.fetch(session, url)
-                    ))
-
-            for task_result in asyncio.as_completed(tasks):
-                fetched_content = await task_result
-                url, response = fetched_content
-                yield url, response.text
-
+        for task_result in asyncio.as_completed(tasks):
+            fetched_content = await task_result
+            url, content = fetched_content
+            yield url, content
 
 class ContentParser(Fetcher, ABC):
     """Class for parse page's html content.
@@ -74,7 +49,6 @@ class ContentParser(Fetcher, ABC):
         """Asyncroniously get pages' html content and parse it.
         """
         pages_content = []
-
         async for url, page_html in self.fetch_pages_content(urls):
 
             logging.debug(
@@ -224,7 +198,7 @@ class SubcategoryParser(ContentParser):
         return page_content
 
     def get_subcategories(self, urls: List[str]) -> List[Dict]:
-        subcategories = asyncio.run(self.get_pages_content(urls))
+        subcategories = asyncio.run(self.get_pages_content(urls[0:3]))
         return subcategories
 
 

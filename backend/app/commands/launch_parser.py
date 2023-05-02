@@ -36,11 +36,11 @@ def launch_parser(parse, json, save):
         'subcategories': launcher.fetch_subcategories,
         'items': launcher.fetch_items
     }
-    try:
-        launcher_functions[parse]()
-    except Exception as e:
-        db.session.rollback()
-        click.echo('Error occured while adding data: {}'.format(e))
-        sys.exit()
+    # try:
+    launcher_functions[parse]()
+    # except Exception as e:
+    #     db.session.rollback()
+    #     click.echo('Error occured while adding data: {}'.format(e))
+    #     sys.exit()
 
     click.echo('Parsing finished successfully.')

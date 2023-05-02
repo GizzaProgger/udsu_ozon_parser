@@ -50,6 +50,7 @@ class DatabaseSaver:
             self, all_subcategories, parent_categories):
         """Save subcategories corresponds to parent categories.
         """
+        print(all_subcategories)
         for category in parent_categories:
             subcategories = all_subcategories[category.url]
             self.save_categories_to_database(subcategories, category)

@@ -27,7 +27,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
     env_file:
       - ./backend/.env.dev
-
+  
+  selenium:
+    image: selenium/standalone-chrome
+    restart: always
+    ports:
+      - 4444:4444
+    environment:
+      - VNC_NO_PASSWORD=1
+      
   frontend:
     build:
       context: ./frontend/
